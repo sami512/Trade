@@ -22,6 +22,18 @@
   .status{font-size:12px;color:var(--muted)}
   .status .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-left:6px}
   .status.live .dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+  /* market status */
+  .market-status{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;background:var(--panel2);border:1px solid var(--border);font-size:12px}
+  .mkt-dot{display:inline-block;width:8px;height:8px;border-radius:50%;animation:pulse .8s infinite}
+  .market-status.open{border-color:var(--green);background:rgba(38,166,154,.1)}
+  .market-status.open .mkt-dot{background:var(--green)}
+  .market-status.closed{border-color:var(--muted);background:rgba(139,152,169,.05)}
+  .market-status.closed .mkt-dot{background:var(--muted)}
+  .market-status.premarket{border-color:var(--gold);background:rgba(247,201,72,.1)}
+  .market-status.premarket .mkt-dot{background:var(--gold)}
+  .market-status.afterhours{border-color:var(--gold);background:rgba(247,201,72,.1)}
+  .market-status.afterhours .mkt-dot{background:var(--gold)}
+  @keyframes pulse{0%{opacity:1}50%{opacity:.5}100%{opacity:1}}
   .grid{display:grid;grid-template-columns:280px 1fr 320px;gap:16px}
   @media(max-width:1100px){.grid{grid-template-columns:1fr}}
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow)}
@@ -143,6 +155,15 @@
   .rec .reasons li{list-style:none;margin:3px 0}
   .rec .reasons li:before{content:'✓ ';color:var(--green);font-weight:700;margin-right:3px}
   .rec-empty{font-size:12px;color:var(--muted);padding:14px;text-align:center;border:1px dashed var(--border);border-radius:8px}
+  /* futures */
+  .fut-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+  .fut-card{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:11px;text-align:center}
+  .fut-label{font-size:10.5px;color:var(--muted);margin-bottom:6px}
+  .fut-big{font-size:22px;font-weight:800;margin:4px 0}
+  .fut-big.up{color:var(--green)}
+  .fut-big.down{color:var(--red)}
+  .fut-sub{font-size:11px;color:var(--gold)}
+  .fut-val{font-size:13px;font-weight:700;margin-top:3px}
   /* journal */
   .jstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px;margin-bottom:14px}
   .js{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:11px;text-align:center}
@@ -181,7 +202,13 @@
       <h1>⚡ منصة التداول — السوق الأمريكية</h1>
       <span class="cap">رأس المال: <span id="capBadge">$10,000</span></span>
     </div>
-    <div class="status" id="status"><span class="dot"></span><span id="statusText">وضع تجريبي (بيانات محاكاة)</span></div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <div class="market-status" id="mktStatus">
+        <span class="mkt-dot"></span>
+        <span id="mktText">جاري الحساب…</span>
+      </div>
+      <div class="status" id="status"><span class="dot"></span><span id="statusText">وضع تجريبي (بيانات محاكاة)</span></div>
+    </div>
   </header>
 
   <div class="keybar">
@@ -191,6 +218,27 @@
     <input id="newskey" type="password" placeholder="مفتاح Finnhub (اختياري — لأخبار السهم)">
     <button class="btn" onclick="saveKey()">تفعيل</button>
     <span class="hint">مفاتيح مجانية: twelvedata.com للأسعار • finnhub.io للأخبار — بدونها يعمل بوضع تجريبي</span>
+  </div>
+
+  <!-- NOTIFICATIONS CONTROL -->
+  <div class="keybar" style="background:rgba(79,140,255,.05);border:1px solid rgba(79,140,255,.2)">
+    <span class="badge">🔔 التنبيهات</span>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+      <input type="checkbox" id="notifEnabled" checked onchange="toggleNotifications()">
+      تنبيهات الإشارات (شراء/بيع)
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+      <input type="checkbox" id="notifEntry" checked onchange="toggleNotifications()">
+      نقاط الدخول/الخروج المثالية
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+      <input type="checkbox" id="notifVibrate" checked>
+      اهتزاز الجوال
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+      مستوى الصوت: <input type="range" id="notifVolume" min="0" max="100" value="70" style="width:60px">
+    </label>
+    <span class="hint">التنبيهات تعمل عند الإشارات والنقاط المهمة</span>
   </div>
 
   <div class="grid">
@@ -299,6 +347,42 @@
       </div>
     </div>
     <div id="recList"></div>
+  </div>
+
+  <!-- FUTURES ANALYSIS (NQ) -->
+  <div class="panel" style="margin-top:16px;background:linear-gradient(135deg,rgba(247,201,72,.1),rgba(247,201,72,.05));border-left:4px solid var(--gold)">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <h2 style="margin:0">📈 تحليل العقود (NQ Futures)</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="badge" id="nqTime">آخر تحديث: —</span>
+        <button class="btn" onclick="analyzeNQ()">تحليل الآن</button>
+      </div>
+    </div>
+
+    <div class="fut-grid">
+      <div class="fut-card">
+        <div class="fut-label">التنبؤ المتوقع</div>
+        <div class="fut-big" id="nqForecast">—</div>
+        <div class="fut-sub" id="nqConf">—</div>
+      </div>
+      <div class="fut-card">
+        <div class="fut-label">الدعم / المقاومة</div>
+        <div class="fut-val" id="nqSupRes">—</div>
+      </div>
+      <div class="fut-card">
+        <div class="fut-label">نقطة الدخول المثالية</div>
+        <div class="fut-val" id="nqEntry">—</div>
+      </div>
+      <div class="fut-card">
+        <div class="fut-label">الهدف / الوقف</div>
+        <div class="fut-val" id="nqTargets">—</div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px">
+      <h3 style="font-size:12px;color:var(--muted);margin:0 0 8px 0">📋 التوصية التفصيلية</h3>
+      <div id="nqAnalysis" style="font-size:12px;line-height:1.8;color:var(--text)"></div>
+    </div>
   </div>
 
   <!-- TRADE JOURNAL -->
@@ -512,6 +596,148 @@ function toggleFav(s,n){
   saveWatch(); renderWatchlist();
 }
 function saveWatch(){localStorage.setItem('td_watch_v2',JSON.stringify(watch));}
+
+/* ============ NOTIFICATIONS SYSTEM ============ */
+let notifState={enabled:true,entryEnabled:true,volume:0.7};
+let lastNotified={};
+
+function playSound(type='signal'){
+  let vol=parseInt(document.getElementById('notifVolume').value)/100;
+  let freq={signal:800,entry:1000,exit:600,buy:1200,sell:400}[type]||800;
+  let dur=type==='signal'?200:(type==='entry'||type==='exit')?150:100;
+  try{
+    let ctx=new(window.AudioContext||window.webkitAudioContext)();
+    let osc=ctx.createOscillator(),gain=ctx.createGain();
+    osc.frequency.value=freq;
+    gain.gain.setValueAtTime(vol,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01,ctx.currentTime+dur/1000);
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);osc.stop(ctx.currentTime+dur/1000);
+  }catch(e){}
+}
+function vibrate(pattern=[200,100,200]){
+  if('vibrate' in navigator){navigator.vibrate(pattern);}
+}
+function notify(msg, type='signal'){
+  let enabled=type==='entry'?document.getElementById('notifEntry').checked:document.getElementById('notifEnabled').checked;
+  if(!enabled)return;
+  let key=msg+type;let now=Date.now();
+  if(lastNotified[key]&&now-lastNotified[key]<3000)return; // debounce 3s
+  lastNotified[key]=now;
+  playSound(type);
+  if(document.getElementById('notifVibrate').checked){
+    vibrate(type==='buy'?[150,100,150]:(type==='sell'?[200,100,200]:[100,50,100]));
+  }
+  console.log('🔔 Notification:',msg);
+}
+function toggleNotifications(){
+  notifState.enabled=document.getElementById('notifEnabled').checked;
+  notifState.entryEnabled=document.getElementById('notifEntry').checked;
+}
+
+/* ============ NQ FUTURES ANALYSIS ============ */
+async function analyzeNQ(){
+  // NQ مرتبط بـ Nasdaq 100، فنستخدم tech leaders كـ proxy
+  let techStocks=['NVDA','AAPL','MSFT','GOOGL','AMZN','META','TSLA','AMD'];
+  let forecasts=[], entries=[], stops=[], targets=[];
+
+  for(let s of techStocks){
+    let d=await fetchScanQuote(s);
+    if(!d)continue;
+    let news=await fetchNews(s);
+    let newsMood=news.length?news.slice(0,3).reduce((a,n)=>{let m=n._mood||scoreHeadline(n.h);return a+(m==='pos'?1:m==='neg'?-1:0);},0):0;
+
+    // توقع: الأسهم التي فيها صعود قوي + أخبار إيجابية = NQ يصعد
+    let strength = d.pct*0.5 + newsMood*2 + (d.range>2?1.5:0);
+    forecasts.push(strength);
+    entries.push(d.price);
+    stops.push(d.price - Math.abs(d.h-d.l)*0.5);
+    targets.push(d.price + Math.abs(d.h-d.l)*1.2);
+  }
+
+  // نتيجة NQ
+  let avgForecast = forecasts.reduce((a,b)=>a+b,0)/forecasts.length;
+  let avgEntry = entries.reduce((a,b)=>a+b,0)/entries.length;
+  let avgStop = stops.reduce((a,b)=>a+b,0)/stops.length;
+  let avgTarget = targets.reduce((a,b)=>a+b,0)/targets.length;
+
+  let prediction = avgForecast>1 ? 'صعود قوي' : avgForecast>0.3 ? 'صعود معتدل' : avgForecast<-1 ? 'هبوط قوي' : 'محايد';
+  let predClass = avgForecast>0.3 ? 'up' : avgForecast<-0.3 ? 'down' : '';
+  let confidence = (Math.abs(avgForecast)/3*100).toFixed(0);
+
+  document.getElementById('nqTime').textContent = 'آخر تحديث: '+new Date().toLocaleTimeString('ar-EG');
+  document.getElementById('nqForecast').className='fut-big '+predClass;
+  document.getElementById('nqForecast').textContent=prediction;
+  document.getElementById('nqConf').textContent='درجة الثقة: '+confidence+'%';
+  document.getElementById('nqSupRes').textContent=`دعم: ${fmt(avgStop)}\nمقاومة: ${fmt(avgTarget)}`;
+  document.getElementById('nqEntry').textContent=fmt(avgEntry);
+  document.getElementById('nqTargets').textContent=`هدف: ${fmt(avgTarget)}\nوقف: ${fmt(avgStop)}`;
+
+  // التوصية التفصيلية
+  let analysis = `
+    <b>التحليل:</b> بناءً على أداء أكبر 8 أسهم في Nasdaq 100 (NVDA, AAPL, MSFT...) والأخبار الخاصة بها،
+    التنبؤ الحالي لـ NQ هو <b style="color:${predClass==='up'?'var(--green)':'var(--red)'">${prediction}</b>
+    بدرجة ثقة <b>${confidence}%</b>.<br><br>
+    <b>التوقيت:</b> أفضل وقت للدخول في NQ هو عند <b>${fmt(avgEntry)}</b> (مستوى فتح يومي متوقع).
+    ضع وقف الخسارة عند <b style="color:var(--red)">${fmt(avgStop)}</b> والهدف الأول عند <b style="color:var(--green)">${fmt(avgTarget)}</b>.<br><br>
+    <b>نسبة المخاطرة/العائد:</b> ${((avgTarget-avgEntry)/(avgEntry-avgStop)).toFixed(2)}:1 —
+    ${((avgTarget-avgEntry)/(avgEntry-avgStop))>1.5?'مناسبة جداً':'جيدة'} للمضاربة.<br><br>
+    <b>ملاحظة:</b> هذا التحليل بناءً على بيانات Nasdaq. NQ يتحرك بنفس الاتجاه لكن بحجم مضاعف (leverage).
+  `;
+  document.getElementById('nqAnalysis').innerHTML=analysis;
+}
+
+/* ============ MARKET STATUS ============ */
+function updateMarketStatus(){
+  // US Eastern Time
+  let now=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
+  let h=now.getHours(), m=now.getMinutes();
+  let day=now.getDay(); // 0=Sun, 5=Fri
+  let isWeekday = day>=1 && day<=5;
+
+  let status, label, timeStr;
+  let el=document.getElementById('mktStatus');
+
+  if(!isWeekday){
+    status='closed';
+    label='🔴 السوق مغلق (نهاية الأسبوع)';
+    timeStr='';
+  }else if(h<4 || (h===4 && m===0)){
+    status='closed';
+    label='🔴 السوق مغلق (ليل)';
+    let openTime=new Date(now);openTime.setHours(9,30,0);
+    let mins=Math.ceil((openTime-now)/60000);
+    timeStr = mins>0 ? `الافتتاح بعد ${Math.floor(mins/60)}:${String(mins%60).padStart(2,'0')}` : '';
+  }else if(h>=4 && h<9 || (h===9 && m<30)){
+    status='premarket';
+    label='🟡 قبل الافتتاح (Pre-market)';
+    let openTime=new Date(now);openTime.setHours(9,30,0);
+    let mins=Math.ceil((openTime-now)/60000);
+    timeStr = mins>0 ? `الافتتاح بعد ${Math.floor(mins/60)}:${String(mins%60).padStart(2,'0')}` : '';
+  }else if((h===9 && m>=30) || (h>=10 && h<16) || (h===16 && m===0)){
+    status='open';
+    label='🟢 السوق مفتوح';
+    let closeTime=new Date(now);closeTime.setHours(16,0,0);
+    let mins=Math.ceil((closeTime-now)/60000);
+    timeStr = mins>0 ? `الإغلاق بعد ${Math.floor(mins/60)}:${String(mins%60).padStart(2,'0')}` : '';
+  }else if(h>16 && h<20 || (h===16 && m>0 && m<60)){
+    status='afterhours';
+    label='🟠 بعد الإغلاق (After-hours)';
+    let closeTime=new Date(now);closeTime.setHours(20,0,0);
+    let mins=Math.ceil((closeTime-now)/60000);
+    timeStr = mins>0 ? `الإغلاق بعد ${Math.floor(mins/60)}:${String(mins%60).padStart(2,'0')}` : '';
+  }else{
+    status='closed';
+    label='🔴 السوق مغلق';
+    timeStr='';
+  }
+
+  let timeDisplay = now.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+  el.className = 'market-status '+status;
+  document.getElementById('mktText').innerHTML = `${label} <span style="color:var(--muted);font-size:11px"> (${timeDisplay} EST)</span>${timeStr?'<br><span style="font-size:10.5px;color:var(--muted)">'+timeStr+'</span>':''}`;
+}
+setInterval(updateMarketStatus, 30000); // كل 30 ثانية
+updateMarketStatus(); // فوري
 
 /* ============ DAILY RECOMMENDATIONS ============ */
 const CORE_STOCKS=['NVDA','TSLA','AAPL','AMD','AMZN','MSFT'];  // ثابت: NVDA + الأقوياء
@@ -856,6 +1082,15 @@ async function loadSymbol(){
   document.getElementById('pStop').textContent=fmt(sig.stop);
   document.getElementById('pT1').textContent=fmt(sig.t1);
   document.getElementById('pT2').textContent=fmt(sig.t2);
+
+  // تنبيهات النقاط المثالية
+  let tolerance=Math.abs(sig.entry*0.005); // ±0.5%
+  if(Math.abs(sig.price-sig.entry)<=tolerance && document.getElementById('notifEntry').checked){
+    notify(current+': نقطة دخول مثالية '+fmt(sig.entry),'entry');
+  }
+  if(Math.abs(sig.price-sig.t1)<=tolerance && document.getElementById('notifEntry').checked){
+    notify(current+': هدف أول '+fmt(sig.t1),'exit');
+  }
   let rl=document.getElementById('reasons');rl.innerHTML='';
   sig.reasons.forEach(([t,txt])=>{
     let tag=t==='pos'?'<span class="tag pos">إيجابي</span>':t==='neg'?'<span class="tag neg">سلبي</span>':'<span class="tag neu">محايد</span>';
@@ -920,6 +1155,8 @@ function maybeAlert(sig){
   if((sig.verdict==='buy'||sig.verdict==='sell') && lastAlerts[current]!==sig.verdict){
     lastAlerts[current]=sig.verdict;
     pushAlert(sig);
+    // تنبيه صوتي
+    notify(current+' '+sig.label, sig.verdict);
   }
 }
 function pushAlert(sig){
@@ -1099,8 +1336,11 @@ setStatus(!!API_KEY);
 renderWatchlist();
 loadSymbol();
 renderJournal();
+analyzeNQ(); // تحليل العقود عند البدء
 // تحديث فوري عند البدء
 updateQuotes();
+// تحديث العقود كل ساعة
+setInterval(analyzeNQ, 3600000);
 // تحديث الأسعار الجانبية كل 15 ثانية (semi-real-time)
 setInterval(()=>{updateQuotes();},15000);
 // تحديث الشموع والمؤشرات والإشارة كل دقيقة (أقل استهلاكاً)
