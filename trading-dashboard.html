@@ -442,6 +442,12 @@ const QUOTE_TTL = 12000;         // reuse quote within 12s (تحديث شبه ل
 document.getElementById('apikey').value = API_KEY;
 document.getElementById('newskey').value = NEWS_KEY;
 
+/* ============ ESSENTIAL FUNCTIONS (called from HTML) ============ */
+function saveKey(){API_KEY=document.getElementById('apikey').value.trim();NEWS_KEY=document.getElementById('newskey').value.trim();localStorage.setItem('td_key',API_KEY);localStorage.setItem('fh_key',NEWS_KEY);setStatus(!!API_KEY);renderWatchlist();loadSymbol();}
+function toggleNotifications(){notifState.enabled=document.getElementById('notifEnabled').checked;notifState.entryEnabled=document.getElementById('notifEntry').checked;}
+function addSymbol(){let v=document.getElementById('addSym').value.trim().toUpperCase();if(!v)return;if(watch.length>=MAX_FAV){alert('الحد الأقصى '+MAX_FAV+' سهم في المفضلة.');return;}if(!watch.find(w=>w.s===v)){watch.push({s:v,n:''});saveWatch();document.getElementById('addSym').value='';renderWatchlist();}}
+function enableNotif(){if(window.Notification)Notification.requestPermission();}
+
 /* ============ INDICATORS ============ */
 function ema(arr,p){let k=2/(p+1),e=[arr[0]];for(let i=1;i<arr.length;i++)e.push(arr[i]*k+e[i-1]*(1-k));return e;}
 function rsi(cl,p=14){
@@ -630,10 +636,6 @@ function notify(msg, type='signal'){
   }
   console.log('🔔 Notification:',msg);
 }
-function toggleNotifications(){
-  notifState.enabled=document.getElementById('notifEnabled').checked;
-  notifState.entryEnabled=document.getElementById('notifEntry').checked;
-}
 
 /* ============ NQ FUTURES ANALYSIS ============ */
 async function analyzeNQ(){
@@ -674,14 +676,16 @@ async function analyzeNQ(){
   document.getElementById('nqTargets').textContent='هدف: '+fmt(avgTarget)+' | وقف: '+fmt(avgStop);
 
   // التوصية التفصيلية
+  let predColor = predClass==='up'?'var(--green)':'var(--red)';
+  let riskRewardText = ((avgTarget-avgEntry)/(avgEntry-avgStop))>1.5?'مناسبة جداً':'جيدة';
   let analysis = `
     <b>التحليل:</b> بناءً على أداء أكبر 8 أسهم في Nasdaq 100 (NVDA, AAPL, MSFT...) والأخبار الخاصة بها،
-    التنبؤ الحالي لـ NQ هو <b style="color:${predClass==='up'?'var(--green)':'var(--red)'">${prediction}</b>
+    التنبؤ الحالي لـ NQ هو <b style="color:${predColor}">${prediction}</b>
     بدرجة ثقة <b>${confidence}%</b>.<br><br>
     <b>التوقيت:</b> أفضل وقت للدخول في NQ هو عند <b>${fmt(avgEntry)}</b> (مستوى فتح يومي متوقع).
     ضع وقف الخسارة عند <b style="color:var(--red)">${fmt(avgStop)}</b> والهدف الأول عند <b style="color:var(--green)">${fmt(avgTarget)}</b>.<br><br>
     <b>نسبة المخاطرة/العائد:</b> ${((avgTarget-avgEntry)/(avgEntry-avgStop)).toFixed(2)}:1 —
-    ${((avgTarget-avgEntry)/(avgEntry-avgStop))>1.5?'مناسبة جداً':'جيدة'} للمضاربة.<br><br>
+    ${riskRewardText} للمضاربة.<br><br>
     <b>ملاحظة:</b> هذا التحليل بناءً على بيانات Nasdaq. NQ يتحرك بنفس الاتجاه لكن بحجم مضاعف (leverage).
   `;
   document.getElementById('nqAnalysis').innerHTML=analysis;
@@ -1173,7 +1177,6 @@ function pushAlert(sig){
     new Notification((sig.verdict==='buy'?'🟢 شراء ':'🔴 بيع ')+current,{body:'السعر '+fmt(sig.price)+' | وقف '+fmt(sig.stop)});
   }
 }
-function enableNotif(){if(window.Notification)Notification.requestPermission();}
 
 /* ============ TRADE JOURNAL ============ */
 let journal = JSON.parse(localStorage.getItem('td_journal')||'[]');
@@ -1320,40 +1323,40 @@ function exportCSV(){
 }
 
 /* ============ CONTROLS ============ */
-function saveKey(){API_KEY=document.getElementById('apikey').value.trim();NEWS_KEY=document.getElementById('newskey').value.trim();localStorage.setItem('td_key',API_KEY);localStorage.setItem('fh_key',NEWS_KEY);setStatus(!!API_KEY);renderWatchlist();loadSymbol();}
 function removeSymbol(s){
   watch=watch.filter(w=>w.s!==s); saveWatch();
   if(current===s&&watch[0]){current=watch[0].s;loadSymbol();}
   renderWatchlist();
 }
-document.getElementById('searchInput').addEventListener('input',e=>{
-  clearTimeout(searchTimer);
-  let v=e.target.value;
-  searchTimer=setTimeout(()=>doSearch(v),350); // debounce = fewer API calls
-});
-document.querySelectorAll('.tf button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tf button').forEach(x=>x.classList.remove('active'));b.classList.add('active');interval=b.dataset.int;loadSymbol();});
-
 /* ============ INIT + AUTO REFRESH ============ */
-setStatus(!!API_KEY);
-renderWatchlist();
-loadSymbol();
-renderJournal();
-analyzeNQ(); // تحليل العقود عند البدء
-// تحديث فوري عند البدء
-updateQuotes();
-// تحديث العقود كل ساعة
-setInterval(analyzeNQ, 3600000);
-// تحديث الأسعار الجانبية كل 15 ثانية (semi-real-time)
-setInterval(()=>{updateQuotes();},15000);
-// تحديث الشموع والمؤشرات والإشارة كل دقيقة (أقل استهلاكاً)
-setInterval(()=>{loadSymbol();},60000);
-// التوصيات اليومية: تُولّد تلقائياً في 2 مساء السعودية
-setInterval(()=>{
-  let now=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Riyadh'}));
-  if(now.getHours()===14 && now.getMinutes()===0){
-    generateDailyRecs();
-  }
-},60000);
+window.addEventListener('load', ()=>{
+  // Event listeners (now safe since functions are defined)
+  document.getElementById('searchInput').addEventListener('input',e=>{
+    clearTimeout(searchTimer);
+    let v=e.target.value;
+    searchTimer=setTimeout(()=>doSearch(v),350); // debounce = fewer API calls
+  });
+  document.querySelectorAll('.tf button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tf button').forEach(x=>x.classList.remove('active'));b.classList.add('active');interval=b.dataset.int;loadSymbol();});
+
+  // Initial setup
+  setStatus(!!API_KEY);
+  renderWatchlist();
+  loadSymbol();
+  renderJournal();
+  analyzeNQ(); // تحليل العقود عند البدء
+  updateQuotes(); // تحديث فوري عند البدء
+
+  // Auto refresh intervals
+  setInterval(analyzeNQ, 3600000); // تحديث العقود كل ساعة
+  setInterval(()=>{updateQuotes();},15000); // تحديث الأسعار كل 15 ثانية
+  setInterval(()=>{loadSymbol();},60000); // تحديث الشموع والمؤشرات كل دقيقة
+  setInterval(()=>{ // التوصيات اليومية
+    let now=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Riyadh'}));
+    if(now.getHours()===14 && now.getMinutes()===0){
+      generateDailyRecs();
+    }
+  },60000);
+});
 </script>
 </body>
 </html>
