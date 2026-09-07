@@ -669,9 +669,9 @@ async function analyzeNQ(){
   document.getElementById('nqForecast').className='fut-big '+predClass;
   document.getElementById('nqForecast').textContent=prediction;
   document.getElementById('nqConf').textContent='درجة الثقة: '+confidence+'%';
-  document.getElementById('nqSupRes').textContent=`دعم: ${fmt(avgStop)}\nمقاومة: ${fmt(avgTarget)}`;
+  document.getElementById('nqSupRes').textContent='دعم: '+fmt(avgStop)+' | مقاومة: '+fmt(avgTarget);
   document.getElementById('nqEntry').textContent=fmt(avgEntry);
-  document.getElementById('nqTargets').textContent=`هدف: ${fmt(avgTarget)}\nوقف: ${fmt(avgStop)}`;
+  document.getElementById('nqTargets').textContent='هدف: '+fmt(avgTarget)+' | وقف: '+fmt(avgStop);
 
   // التوصية التفصيلية
   let analysis = `
@@ -734,7 +734,9 @@ function updateMarketStatus(){
 
   let timeDisplay = now.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
   el.className = 'market-status '+status;
-  document.getElementById('mktText').innerHTML = `${label} <span style="color:var(--muted);font-size:11px"> (${timeDisplay} EST)</span>${timeStr?'<br><span style="font-size:10.5px;color:var(--muted)">'+timeStr+'</span>':''}`;
+  let html = label + ' <span style="color:var(--muted);font-size:11px"> (' + timeDisplay + ' EST)</span>';
+  if(timeStr) html += '<br><span style="font-size:10.5px;color:var(--muted);">' + timeStr + '</span>';
+  document.getElementById('mktText').innerHTML = html;
 }
 setInterval(updateMarketStatus, 30000); // كل 30 ثانية
 updateMarketStatus(); // فوري
