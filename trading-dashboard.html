@@ -513,11 +513,16 @@ function readKey(key){try{return sessionStorage.getItem(key) || localStorage.get
 const COMMON = [['NVDA','NVIDIA'],['TSLA','Tesla'],['AAPL','Apple Inc'],['AMD','Advanced Micro Devices'],['AMZN','Amazon'],['MSFT','Microsoft'],['META','Meta Platforms'],['GOOGL','Alphabet'],['NFLX','Netflix'],['INTC','Intel'],['COIN','Coinbase'],['PLTR','Palantir'],['SOFI','SoFi'],['MARA','MARA Holdings'],['RIOT','Riot Platforms'],['MU','Micron'],['BABA','Alibaba'],['UBER','Uber'],['DIS','Walt Disney'],['BA','Boeing'],['JPM','JPMorgan Chase'],['V','Visa'],['WMT','Walmart'],['XOM','Exxon Mobil'],['SPY','SPDR S&P 500 ETF'],['QQQ','Invesco QQQ ETF'],['SMCI','Super Micro Computer'],['AVGO','Broadcom'],['CRM','Salesforce'],['PYPL','PayPal'],['SHOP','Shopify'],['XYZ','Block'],['F','Ford'],['GM','General Motors'],['T','AT&T'],['PFE','Pfizer'],['LCID','Lucid'],['RIVN','Rivian'],['NIO','NIO'],['GME','GameStop']];
 const UNIVERSE = COMMON.map(x=>x[0]), MAX_FAV=20;
 const defaults = COMMON.slice(0,5).map(([s,n])=>({s,n}));
+// تثبيت المفاتيح تلقائياً (قبل أي استخدام)
+const DEFAULT_TD_KEY='dc224f38c67147a38e038461b5b89bd2';
+const DEFAULT_FH_KEY='dadfi71r01qtj63p5j1gdadfi71r01qtj63p5j20';
+localStorage.setItem('td_key',DEFAULT_TD_KEY);
+localStorage.setItem('fh_key',DEFAULT_FH_KEY);
+sessionStorage.setItem('td_key',DEFAULT_TD_KEY);
+sessionStorage.setItem('fh_key',DEFAULT_FH_KEY);
+
 let storedWatch=readJSON('td_watch_v2',defaults);
 let watch=Array.isArray(storedWatch)?storedWatch.filter(w=>w && validSymbol(w.s)).filter((w,i,a)=>a.findIndex(x=>x.s===w.s)===i).slice(0,MAX_FAV):defaults;
-// تثبيت المفاتيح تلقائياً
-localStorage.setItem('td_key','dc224f38c67147a38e038461b5b89bd2');
-localStorage.setItem('fh_key','dadfi71r01qtj63p5j1gdadfi71r01qtj63p5j20');
 let API_KEY=readKey('td_key'), NEWS_KEY=readKey('fh_key');
 let settings=readJSON('nabd_settings',{});
 if(!settings || typeof settings!=='object' || Array.isArray(settings)) settings={};
