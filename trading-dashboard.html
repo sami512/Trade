@@ -515,6 +515,9 @@ const UNIVERSE = COMMON.map(x=>x[0]), MAX_FAV=20;
 const defaults = COMMON.slice(0,5).map(([s,n])=>({s,n}));
 let storedWatch=readJSON('td_watch_v2',defaults);
 let watch=Array.isArray(storedWatch)?storedWatch.filter(w=>w && validSymbol(w.s)).filter((w,i,a)=>a.findIndex(x=>x.s===w.s)===i).slice(0,MAX_FAV):defaults;
+// تثبيت المفاتيح تلقائياً
+localStorage.setItem('td_key','dc224f38c67147a38e038461b5b89bd2');
+localStorage.setItem('fh_key','dadfi71r01qtj63p5j1gdadfi71r01qtj63p5j20');
 let API_KEY=readKey('td_key'), NEWS_KEY=readKey('fh_key');
 let settings=readJSON('nabd_settings',{});
 if(!settings || typeof settings!=='object' || Array.isArray(settings)) settings={};
@@ -759,6 +762,9 @@ function init(){
   $('apikey').setAttribute('aria-label','مفتاح Twelve Data');$('newskey').setAttribute('aria-label','مفتاح Finnhub');$('notifVolume').setAttribute('aria-label','مستوى صوت التنبيه');
   $('chart').addEventListener('pointermove',chartHover);$('chart').addEventListener('pointerleave',()=>$('chartTooltip').hidden=true);new ResizeObserver(drawChart).observe($('chart').parentElement);
   document.addEventListener('keydown',e=>{if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();showView('overview');$('searchInput').focus();}});
+  // ملء حقول المفاتيح تلقائياً
+  $('apikey').value=API_KEY;
+  $('newskey').value=NEWS_KEY;
   updateMarketStatus();renderWatchlist();renderJournal();renderPriceAlerts();setChartMode(chartMode);loadSymbol();
   $('nqAnalysis').textContent='قراءة لثمانية أسهم تقنية، وليست تحليلاً لعقود NQ. اضغط تحليل الآن.';
   setInterval(updateMarketStatus,30000);setInterval(()=>{noteRequests();if(!paused&&!document.hidden)refreshAll();},60000);
