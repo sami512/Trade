@@ -233,10 +233,11 @@ html{scroll-behavior:smooth}body{font-family:"Segoe UI",Tahoma,sans-serif;backgr
     <input id="apikey" type="password" placeholder="مفتاح Twelve Data (الشموع والمؤشرات)">
     <span class="badge">الأسعار والأخبار</span>
     <input id="newskey" type="password" placeholder="مفتاح Finnhub (الأسعار والأخبار)">
-    <button class="btn" onclick="saveKey()">تفعيل</button>
-    <span class="hint"><label class="remember"><input id="rememberKeys" type="checkbox"> تذكّر المفاتيح على هذا الجهاز</label><span>تُرسل المفاتيح إلى مزوّدها فقط. الحفظ الدائم يجعلها متاحة لبرامج الصفحة.</span></span>
+    <button class="btn" onclick="saveKey()">تفعيل وفحص</button>
+    <span class="hint"><label class="remember"><input id="rememberKeys" type="checkbox"> تذكّر المفاتيح على هذا الجهاز</label><span>المفتاحان مثبتان في الملف. هذا الخيار يحفظ تعديلاتك على المفاتيح في المتصفح.</span></span>
   </div>
 
+  <div class="keybar" style="font-size:12px" aria-live="polite"><span id="tdHealth">Twelve Data: لم يُفحص بعد</span><span id="fhHealth">Finnhub أسعار: لم يُفحص بعد</span><span id="newsHealth">Finnhub أخبار: لم يُفحص بعد</span></div>
   <!-- NOTIFICATIONS CONTROL -->
   <div class="keybar" style="background:rgba(79,140,255,.05);border:1px solid rgba(79,140,255,.2)">
     <span class="badge">🔔 التنبيهات</span>
@@ -261,7 +262,7 @@ html{scroll-behavior:smooth}body{font-family:"Segoe UI",Tahoma,sans-serif;backgr
   </details>
   <nav class="workspace-nav" aria-label="أقسام المنصة">
     <div class="nav-sections"><button class="nav-btn active" data-view="overview">الأسهم</button><button class="nav-btn" data-view="futures">العقود الآجلة</button><button class="nav-btn" data-view="scanner">ماسح السوق</button><button class="nav-btn" data-view="opportunities">الفرص</button><button class="nav-btn" data-view="portfolio">المراكز والمخاطر</button><button class="nav-btn" data-view="events">الأحداث</button><button class="nav-btn" data-view="alertcenter">مركز التنبيهات</button><button class="nav-btn" data-view="journal">سجل الصفقات</button></div>
-    <div class="toolbar"><span id="clock"></span><button class="btn ghost" id="pauseBtn" onclick="toggleRefresh()">Ⅱ إيقاف التحديث</button><button class="btn" id="refreshBtn" onclick="refreshAll()">↻ تحديث</button></div>
+    <div class="toolbar"><span id="clock"></span><button class="btn ghost" id="pauseBtn" onclick="toggleRefresh()">Ⅱ إيقاف التحديث</button><button class="btn" id="refreshBtn" onclick="refreshAll(true)">↻ تحديث</button></div>
   </nav>
   <div class="data-banner" id="dataBanner" role="status">وضع تجريبي · الأسعار والإشارات محاكاة وليست بيانات سوق فعلية.</div>
   <div class="overview-strip" data-page="overview">
@@ -506,7 +507,7 @@ const finite = n => Number.isFinite(n);
 const positive = n => finite(n) && n > 0;
 const fmt = n => finite(n) ? '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
 const percent = n => finite(n) ? (n > 0 ? '+' : '') + n.toFixed(2) + '%' : '—';
-const timeText = ms => finite(ms) ? new Date(ms).toLocaleString('ar-SA',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'وقت غير متاح';
+const timeText = ms => finite(ms) ? new Date(ms).toLocaleString('ar-SA-u-ca-gregory',{timeZone:'Asia/Riyadh',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+' الرياض' : 'وقت غير متاح';
 function readJSON(key, fallback){try {const v = JSON.parse(localStorage.getItem(key));return v ?? fallback;}catch{return fallback;}}
 function storeJSON(key, value){try{localStorage.setItem(key, JSON.stringify(value));}catch{toast('تعذّر الحفظ المحلي. تحقّق من مساحة المتصفح وأذونات التخزين.');}}
 function readKey(key){try{return sessionStorage.getItem(key) || localStorage.getItem(key) || '';}catch{return '';}}
@@ -516,14 +517,16 @@ const defaults = COMMON.slice(0,5).map(([s,n])=>({s,n}));
 // تثبيت المفاتيح تلقائياً (قبل أي استخدام)
 const DEFAULT_TD_KEY='dc224f38c67147a38e038461b5b89bd2';
 const DEFAULT_FH_KEY='dadfi71r01qtj63p5j1gdadfi71r01qtj63p5j20';
-localStorage.setItem('td_key',DEFAULT_TD_KEY);
-localStorage.setItem('fh_key',DEFAULT_FH_KEY);
-sessionStorage.setItem('td_key',DEFAULT_TD_KEY);
-sessionStorage.setItem('fh_key',DEFAULT_FH_KEY);
+// Bundled defaults work even when browser storage is unavailable. Preserve saved user data.
+function configuredKey(key, fallback){
+  try{const v=sessionStorage.getItem(key);if(v!==null)return v;}catch{}
+  try{const v=localStorage.getItem(key);if(v!==null)return v;}catch{}
+  return fallback;
+}
 
 let storedWatch=readJSON('td_watch_v2',defaults);
 let watch=Array.isArray(storedWatch)?storedWatch.filter(w=>w && validSymbol(w.s)).filter((w,i,a)=>a.findIndex(x=>x.s===w.s)===i).slice(0,MAX_FAV):defaults;
-let API_KEY=readKey('td_key'), NEWS_KEY=readKey('fh_key');
+let API_KEY=configuredKey('td_key',DEFAULT_TD_KEY), NEWS_KEY=configuredKey('fh_key',DEFAULT_FH_KEY);
 let settings=readJSON('nabd_settings',{});
 if(!settings || typeof settings!=='object' || Array.isArray(settings)) settings={};
 let interval=['1min','5min','15min','1h'].includes(settings.interval)?settings.interval:'5min';
@@ -550,11 +553,17 @@ function resetDataState(){cache.clear();pending.clear();signalMemory.clear();sca
 async function saveKey(){
   configVersion++;API_KEY=$('apikey').value.trim();NEWS_KEY=$('newskey').value.trim();
   try{for(const [key,value] of [['td_key',API_KEY],['fh_key',NEWS_KEY]]){sessionStorage.setItem(key,value);if($('rememberKeys').checked)localStorage.setItem(key,value);else localStorage.removeItem(key);}}catch{toast('المفاتيح مفعّلة لهذه الصفحة، لكن تعذّر حفظها في المتصفح.');}
-  resetDataState();renderWatchlist();await loadSymbol();updateQuotes();toast(isDemo()?'تم تفعيل المحاكاة.':'تم تطبيق إعدادات الاتصال.');
+  resetDataState();renderWatchlist();await refreshAll(true);toast(isDemo()?'تم تفعيل المحاكاة.':'تم تطبيق المفاتيح؛ نتيجة الاتصال موضّحة تحت الإعدادات.');
 }
 function noteRequests(){
   const now=Date.now();for(const p of ['td','fh'])requestTimes[p]=requestTimes[p].filter(t=>now-t<60000);
   $('usage').textContent=`طلبات آخر دقيقة · Twelve Data: ${requestTimes.td.length} · Finnhub: ${requestTimes.fh.length}`;
+}
+function connectionHealth(provider,endpoint,error){
+  const id=provider==='td'?'tdHealth':endpoint==='company-news'?'newsHealth':endpoint==='quote'?'fhHealth':null;
+  if(!id)return;const el=$(id),name=provider==='td'?'Twelve Data':endpoint==='company-news'?'Finnhub أخبار':'Finnhub أسعار';
+  el.textContent=name+' · '+(error?'تعذّر الاتصال: '+cleanError(error):'اتصال ناجح · آخر فحص '+timeText(Date.now()));
+  el.className=error?'down':'up';
 }
 async function api(provider, endpoint, params={}){
   noteRequests();
@@ -567,7 +576,12 @@ async function api(provider, endpoint, params={}){
   Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));url.searchParams.set(provider==='td'?'apikey':'token',token);
   requestTimes[provider].push(Date.now());noteRequests();
   const controller=new AbortController(), timeout=setTimeout(()=>controller.abort(),12000);
-  try{const response=await fetch(url,{signal:controller.signal,referrerPolicy:'no-referrer'});if(!response.ok)throw new Error('استجابة المزوّد: '+response.status);const result=await response.json();if(result.status==='error'||result.error)throw new Error(result.message||result.error);return result;}
+  try{
+    const response=await fetch(url,{signal:controller.signal,referrerPolicy:'no-referrer',cache:'no-store'});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||result.status==='error'||result.error)throw new Error(result.message||result.error||'استجابة المزوّد: '+response.status);
+    connectionHealth(provider,endpoint);return result;
+  }catch(e){const error=e.name==='AbortError'?new Error('انتهت مهلة الاتصال؛ أعد المحاولة.'):e;connectionHealth(provider,endpoint,error);throw error;}
   finally{clearTimeout(timeout);}
 }
 async function cached(key,ttl,fn){
@@ -578,6 +592,42 @@ async function cached(key,ttl,fn){
 const intervalMs=()=>({'1min':60000,'5min':300000,'15min':900000,'1h':3600000}[interval]);
 function marketParts(ms){const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23',weekday:'short'}).formatToParts(new Date(ms));return Object.fromEntries(p.map(v=>[v.type,v.value]));}
 function sessionKey(ms){const p=marketParts(ms);return p.year+'-'+p.month+'-'+p.day;}
+// NYSE published holidays and early closes, verified 2026-09-08:
+// https://www.nyse.com/trade/hours-calendars (scheduled closures, not emergency halts).
+const holidayNames=['رأس السنة','مارتن لوثر كينغ','يوم الرؤساء','الجمعة العظيمة','يوم الذكرى','جونتينث','الاستقلال','عيد العمال','عيد الشكر','عيد الميلاد'];
+const holidayDates={
+  2026:['01-01','01-19','02-16','04-03','05-25','06-19','07-03','09-07','11-26','12-25'],
+  2027:['01-01','01-18','02-15','03-26','05-31','06-18','07-05','09-06','11-25','12-24'],
+  2028:['','01-17','02-21','04-14','05-29','06-19','07-04','09-04','11-23','12-25']
+};
+const earlyCloses=new Set(['2026-11-27','2026-12-24','2027-11-26','2028-07-03','2028-11-24']);
+function tradingDay(date){
+  const weekday=new Date(date+'T12:00:00Z').getUTCDay(),year=date.slice(0,4),index=(holidayDates[year]||[]).indexOf(date.slice(5));
+  return {date,known:!!holidayDates[year],open:weekday!==0&&weekday!==6&&index<0,holiday:index>=0?holidayNames[index]:'',close:earlyCloses.has(date)?780:960};
+}
+function shiftDate(date,days){const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);}
+function nyTimestamp(date,minutes){
+  const target=Date.parse(date+'T00:00:00Z')+minutes*60000;let guess=target;
+  for(let i=0;i<3;i++){const p=marketParts(guess),local=Date.parse(p.year+'-'+p.month+'-'+p.day+'T00:00:00Z')+(+p.hour*60+(+p.minute))*60000;guess+=target-local;}
+  return guess;
+}
+function marketInfo(now=Date.now()){
+  const p=marketParts(now),date=sessionKey(now),day=tradingDay(date),minutes=+p.hour*60+(+p.minute);
+  let state='closed',label=day.holiday?'عطلة السوق: '+day.holiday:!day.open?'عطلة نهاية الأسبوع':'الجلسة مغلقة';
+  if(day.open){if(minutes>=570&&minutes<day.close){state='open';label='الجلسة العادية مفتوحة';}else if(minutes>=240&&minutes<570){state='premarket';label='قبل الافتتاح · الجلسة العادية مغلقة';}else if(minutes>=day.close&&minutes<1200){state='afterhours';label='بعد إغلاق الجلسة العادية';}}
+  let last=date;for(let i=0;i<14;i++){if(tradingDay(last).open&&(last!==date||minutes>=570))break;last=shiftDate(last,-1);}
+  let next=date;for(let i=0;i<14;i++){if(tradingDay(next).open&&(next!==date||minutes<570))break;next=shiftDate(next,1);}
+  return {...day,p,minutes,state,label,last,nextOpen:nyTimestamp(next,570)};
+}
+function dataFreshness(t,step=0,now=Date.now()){
+  const m=marketInfo(now);
+  if(!positive(t)||t>now+120000)return {stale:true,label:'وقت البيانات غير صالح'};
+  if(now-t<=step+120000)return {stale:false,label:'بيانات حديثة'};
+  if(!m.known)return {stale:true,label:'تحقّق من وقت البيانات؛ تقويم العطلات يحتاج تحديثاً'};
+  const last=tradingDay(m.last),end=nyTimestamp(m.last,last.close);
+  if(m.state!=='open'&&t>=end-step-120000)return {stale:false,label:'آخر جلسة مكتملة · الجلسة العادية مغلقة'};
+  return {stale:true,label:'بيانات متأخرة عن آخر جلسة متاحة'};
+}
 function genDemo(sym,tf=interval){
   // Fixed seeded sample, consistent across all views; refreshing never invents a new history.
   const step={'1min':60000,'5min':300000,'15min':900000,'1h':3600000}[tf]||300000;
@@ -603,13 +653,18 @@ async function fetchSeries(sym,tf=interval){return cached('series:'+sym+':'+tf,5
 });}
 async function fetchQuote(sym){return cached('quote:'+sym,60000,async()=>{
   if(isDemo())return demoQuote(sym);
-  let q;
-  if(NEWS_KEY){const j=await api('fh','quote',{symbol:sym});q={s:sym,price:+j.c,pct:j.dp==null?(+j.c-(+j.pc))/(+j.pc)*100:+j.dp,h:+j.h,l:+j.l,o:+j.o,pc:+j.pc,t:j.t?+j.t*1000:null,source:'Finnhub',demo:false};}
-  else{const j=await api('td','quote',{symbol:sym});q={s:sym,price:+j.close,pct:j.percent_change==null?NaN:+j.percent_change,h:+j.high,l:+j.low,o:+j.open,pc:+j.previous_close,t:j.timestamp?+j.timestamp*1000:null,source:'Twelve Data',demo:false};}
-  if(!positive(q.price))throw new Error('السعر غير متوفر لهذا الرمز.');return q;
+  const providers=[...(NEWS_KEY?['fh']:[]),...(API_KEY?['td']:[])],errors=[];
+  for(const provider of providers){try{
+    const j=await api(provider,'quote',{symbol:sym});
+    const q=provider==='fh'?{s:sym,price:+j.c,pct:j.dp==null?(+j.c-(+j.pc))/(+j.pc)*100:+j.dp,h:+j.h,l:+j.l,o:+j.o,pc:+j.pc,t:j.t?+j.t*1000:null,source:'Finnhub',demo:false}
+      :{s:sym,price:+j.close,pct:j.percent_change==null?NaN:+j.percent_change,h:+j.high,l:+j.low,o:+j.open,pc:+j.previous_close,t:(+j.last_quote_at||+j.timestamp)*1000||null,source:'Twelve Data',demo:false};
+    if(!positive(q.price))throw new Error('السعر غير متوفر لهذا الرمز.');
+    return {...q,checkedAt:Date.now(),fallback:errors.length>0};
+  }catch(e){errors.push(provider+': '+cleanError(e));}}
+  throw new Error(errors.join(' · '));
 });}
 async function fetchScanQuote(sym){const q=await fetchQuote(sym);if(!positive(q.pc)||!positive(q.h)||!positive(q.l)||q.h<q.l||!finite(q.pct))throw new Error('نطاق اليوم غير متوفر.');return {...q,range:(q.h-q.l)/q.pc*100,pos:q.h===q.l?50:Math.max(0,Math.min(100,(q.price-q.l)/(q.h-q.l)*100))};}
-function quoteAge(q){if(q.demo)return 'محاكاة';if(!q.t)return 'الوقت غير متاح';return Date.now()-q.t>120000?'آخر سعر · '+timeText(q.t):'تحديث حديث · '+timeText(q.t);}
+function quoteAge(q){if(q.demo)return 'محاكاة';if(!q.t)return 'الوقت غير متاح';return dataFreshness(q.t).label+' · '+timeText(q.t);}
 function ema(values,p){if(!values.length)return [];const k=2/(p+1),out=[values[0]];for(let i=1;i<values.length;i++)out.push(values[i]*k+out[i-1]*(1-k));return out;}
 function rsi(cl,p=14){if(cl.length<=p)return null;let g=0,l=0;for(let i=1;i<=p;i++){const d=cl[i]-cl[i-1];g+=Math.max(0,d);l+=Math.max(0,-d);}g/=p;l/=p;for(let i=p+1;i<cl.length;i++){const d=cl[i]-cl[i-1];g=(g*(p-1)+Math.max(0,d))/p;l=(l*(p-1)+Math.max(0,-d))/p;}return g===0&&l===0?50:l===0?100:100-100/(1+g/l);}
 function macd(cl){const a=ema(cl,12),b=ema(cl,26),line=cl.map((_,i)=>a[i]-b[i]),signal=ema(line,9);return {line:line.at(-1),signal:signal.at(-1),hist:line.at(-1)-signal.at(-1)};}
@@ -656,12 +711,12 @@ async function updateQuotes(){
   if(quoteUpdating)return;quoteUpdating=true;const version=configVersion;
   try{const symbols=[...new Set([...watch.map(w=>w.s),current,...priceAlerts.filter(a=>!a.triggered).map(a=>a.sym)])];
     for(const sym of symbols){if(version!==configVersion)break;try{const q=await fetchQuote(sym);if(version!==configVersion)break;
-      const px=$('wpx-'+sym),ch=$('wch-'+sym),meta=$('wmeta-'+sym);if(px)px.textContent=fmt(q.price);if(ch){ch.textContent=percent(q.pct);ch.className='chg '+(q.pct>=0?'up':'down');}if(meta){meta.textContent=q.demo?'محاكاة':q.source+' · '+(q.t?(Date.now()-q.t>120000?'سابقة · ':'')+new Date(q.t).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'وقت غير متاح');meta.title=quoteAge(q);}
+      const px=$('wpx-'+sym),ch=$('wch-'+sym),meta=$('wmeta-'+sym);if(px)px.textContent=fmt(q.price);if(ch){ch.textContent=percent(q.pct);ch.className='chg '+(q.pct>=0?'up':'down');}if(meta){meta.textContent=q.demo?'محاكاة':q.source+' · '+(q.t?timeText(q.t):'وقت غير متاح');meta.title=quoteAge(q);}
       if(sym===current)renderQuote(q);checkPriceAlerts(q);
     }catch(e){if(version!==configVersion)break;const px=$('wpx-'+sym),ch=$('wch-'+sym),meta=$('wmeta-'+sym);if(px)px.textContent='—';if(ch)ch.textContent='';if(meta){meta.textContent='غير متاح';meta.title=cleanError(e);}}}
   }finally{quoteUpdating=false;if(version!==configVersion)updateQuotes();}
 }
-function renderQuote(q){$('curPrice').textContent=fmt(q.price);$('curChg').textContent=percent(q.pct);$('curChg').className='chg '+(q.pct>=0?'up':'down');$('sourceBadge').textContent=q.demo?'محاكاة':q.source+' · آخر سعر';$('sourceBadge').title=quoteAge(q);$('quoteStamp').textContent=q.demo?'عينة سعر تجريبية ثابتة':q.source+' · '+quoteAge(q);}
+function renderQuote(q){$('curPrice').textContent=fmt(q.price);$('curChg').textContent=percent(q.pct);$('curChg').className='chg '+(q.pct>=0?'up':'down');$('sourceBadge').textContent=q.demo?'محاكاة':q.source+' · '+(dataFreshness(q.t).stale?'سعر متأخر':'آخر سعر متاح')+(q.fallback?' · مصدر بديل':'');$('sourceBadge').title=quoteAge(q);$('quoteStamp').textContent=q.demo?'عينة سعر تجريبية ثابتة':q.source+' · '+quoteAge(q)+' · آخر فحص '+timeText(q.checkedAt);}
 function clearAnalysis(message){lastPlan=null;currentCandles=[];currentData=null;$('chartEmpty').textContent=message;$('chartEmpty').hidden=false;$('chartTooltip').hidden=true;['iRSI','iMACD','iEMA','iVWAP','pEntry','pStop','pT1','pT2'].forEach(id=>$(id).textContent='—');$('signalBox').className='signal hold';$('verdict').textContent='التحليل غير متاح';$('verdictSub').textContent=message;$('signalMeter').style.width='0%';$('reasons').innerHTML='';$('expert').textContent='';$('barStamp').textContent='—';drawChart();calcRisk();}
 async function loadSymbol(){
   const seq=++loadSequence,sym=current,tf=interval,version=configVersion;clearAnalysis('جاري تحميل '+sym+'…');$('companyName').textContent=COMMON.find(x=>x[0]===sym)?.[1]||watch.find(w=>w.s===sym)?.n||sym;$('curSym').textContent=sym;$('curPrice').textContent='—';$('curChg').textContent='';$('verdict').textContent='جاري التحليل…';$('verdictSub').textContent='';$('sourceBadge').textContent='جاري الاتصال';$('quoteStamp').textContent='وقت السعر: —';
@@ -677,7 +732,7 @@ async function loadSymbol(){
       renderSignal(lastPlan);drawChart();calcRisk();maybeAlert(lastPlan);
       $('barStamp').textContent=(data.demo?'شموع محاكاة · ':'آخر شمعة مكتملة · ')+timeText(sig.barTime);
       if(data.demo){setBanner('','وضع تجريبي · عينة محاكاة ثابتة للتجربة. الأسعار والإشارات ليست بيانات سوق فعلية.');$('statusText').textContent='وضع تجريبي';$('status').className='status';}
-      else{const old=Date.now()-sig.barTime>step+120000;setBanner('connected',`الشموع: ${data.source} · ${old?'بيانات تاريخية / متأخرة':'آخر بيانات متاحة'} · ${timeText(sig.barTime)}. آخر سعر قد يختلف عن سعر الخطة.`);$('statusText').textContent='اتصال بالمزوّد · تحقق من وقت البيانات';$('status').className='status live';}
+      else{const freshness=dataFreshness(sig.barTime,step),m=marketInfo();setBanner(freshness.stale?'error':'connected',`الشموع: ${data.source} · ${freshness.label} · ${timeText(sig.barTime)}.${m.state!=='open'?' الافتتاح القادم: '+timeText(m.nextOpen)+'. بيانات ما قبل/بعد الجلسة تعتمد على اشتراك المزوّد.':''} آخر سعر قد يختلف عن سعر الخطة.`);$('statusText').textContent=freshness.stale?'متصل · البيانات متأخرة':'متصل · '+(m.state==='open'?'الجلسة مفتوحة':'الجلسة مغلقة');$('status').className='status'+(!freshness.stale&&m.state==='open'?' live':'');}
     }catch(e){clearAnalysis(cleanError(e));setBanner('error',cleanError(e));}
   }else{const message=cleanError(seriesResult.reason);clearAnalysis(message);setBanner('error',message+' — لا يتم إنشاء بيانات بديلة.');$('statusText').textContent='الشموع غير متاحة';$('status').className='status';}
   if(quoteResult.status==='rejected'&&seriesResult.status==='rejected')$('sourceBadge').textContent='لا توجد بيانات';
@@ -706,10 +761,10 @@ function drawChart(){
   chartGeometry={bars,left,step};
 }
 function chartHover(event){if(!chartGeometry)return;const {bars,left,step}=chartGeometry,rect=$('chart').getBoundingClientRect(),i=Math.max(0,Math.min(bars.length-1,Math.floor((event.clientX-rect.left-left)/step))),b=bars[i];$('chartTooltip').hidden=false;$('chartTooltip').textContent=`${new Date(b.t).toLocaleString('en-GB',{timeZone:'America/New_York'})} ET · فتح ${fmt(b.o)} · أعلى ${fmt(b.h)} · أدنى ${fmt(b.l)} · إغلاق ${fmt(b.c)} · حجم ${b.v.toLocaleString('en-US')}`;}
-async function fetchNews(sym){if(!NEWS_KEY)return {items:[],message:'أضف مفتاح Finnhub لقراءة أخبار فعلية. لا يتم توليد عناوين تجريبية.'};try{return await cached('news:'+sym,600000,async()=>{const to=new Date(),from=new Date(Date.now()-7*86400000),data=await api('fh','company-news',{symbol:sym,from:from.toISOString().slice(0,10),to:to.toISOString().slice(0,10)});if(!Array.isArray(data))throw new Error('الأخبار غير متاحة');return {items:data.slice(0,8),message:'لا توجد أخبار متاحة خلال آخر 7 أيام.'};});}catch(e){return {items:[],message:'تعذّر جلب الأخبار: '+cleanError(e)};}}
+async function fetchNews(sym){if(!NEWS_KEY)return {items:[],message:'أضف مفتاح Finnhub لقراءة أخبار فعلية. لا يتم توليد عناوين تجريبية.'};try{return await cached('news:'+sym,600000,async()=>{const to=new Date(),from=new Date(Date.now()-7*86400000),data=await api('fh','company-news',{symbol:sym,from:from.toISOString().slice(0,10),to:to.toISOString().slice(0,10)});if(!Array.isArray(data))throw new Error('الأخبار غير متاحة');return {items:data.filter(x=>x&&finite(x.datetime)&&x.headline).sort((a,b)=>b.datetime-a.datetime).slice(0,8),message:'لا توجد أخبار متاحة خلال آخر 7 أيام.'};});}catch(e){return {items:[],message:'تعذّر جلب الأخبار: '+cleanError(e)};}}
 function safeURL(value){try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:null;}catch{return null;}}
 function renderNews(result){$('news').innerHTML='';$('newsMood').textContent=result.items.length?'Finnhub · '+result.items.length+' أخبار':'غير متاحة';if(!result.items.length){const p=document.createElement('div');p.className='srmsg';p.textContent=result.message;$('news').appendChild(p);return;}for(const item of result.items){const url=safeURL(item.url),a=document.createElement(url?'a':'div');a.className='news-item';if(url){a.href=url;a.target='_blank';a.rel='noopener noreferrer';}a.innerHTML=`<div class="h">${esc(item.headline)}</div><div class="meta"><span>${esc(item.source)}</span><span>${esc(timeText(item.datetime*1000))}</span></div>`;$('news').appendChild(a);}}
-function updateMarketStatus(){const p=marketParts(Date.now()),minutes=+p.hour*60+(+p.minute),weekday=!['Sat','Sun'].includes(p.weekday);let state='closed',label='خارج ساعات الجلسة المعتادة';if(weekday&&minutes>=570&&minutes<960){state='open';label='ضمن وقت الجلسة المعتاد';}else if(weekday&&minutes>=240&&minutes<570){state='premarket';label='وقت ما قبل الافتتاح';}else if(weekday&&minutes>=960&&minutes<1200){state='afterhours';label='وقت ما بعد الإغلاق';}$('mktStatus').className='market-status '+state;$('mktText').textContent=`${label} · ${p.hour}:${p.minute} ET`;$('mktStatus').title='حسب توقيت نيويورك؛ لا يشمل العطلات والإغلاقات المبكرة.';$('clock').textContent=new Date().toLocaleTimeString('en-GB',{timeZone:'Asia/Riyadh',hour:'2-digit',minute:'2-digit'})+'  الرياض';}
+function updateMarketStatus(){const m=marketInfo();$('mktStatus').className='market-status '+m.state;$('mktText').textContent=`${m.label} · ${m.p.hour}:${m.p.minute} ET`;$('mktStatus').title=(m.known?'تقويم NYSE للعطلات والإغلاق المبكر 2026–2028؛ لا يشمل الإغلاقات الطارئة.':'تقويم العطلات يحتاج تحديثاً.');$('clock').textContent=new Date().toLocaleTimeString('en-GB',{timeZone:'Asia/Riyadh',hour:'2-digit',minute:'2-digit'})+' الرياض';}
 function pushAlert(message,kind='hold',category='stock'){const box=$('alerts');if(box.querySelector('.srmsg'))box.innerHTML='';const row=document.createElement('div');row.className='alert '+kind;row.innerHTML=`<b>${esc(message)}</b><div class="t">${esc(timeText(Date.now()))}</div>`;box.prepend(row);while(box.children.length>50)box.lastChild.remove();saveAlertHistory(message,kind,category);}
 async function enableNotif(){if(!('Notification' in window)){toast('المتصفح لا يدعم إشعارات النظام.');return;}try{const result=await Notification.requestPermission();toast(result==='granted'?'تم تفعيل إشعارات المتصفح.':'لم يُمنح إذن الإشعارات؛ يبقى السجل داخل الصفحة متاحاً.');}catch{toast('تعذّر تفعيل الإشعارات في هذا المتصفح.');}}
 function notify(message,kind='signal'){const enabled=kind==='price'?$('notifEntry').checked:$('notifEnabled').checked;if(!enabled)return;if('Notification' in window&&Notification.permission==='granted'){try{new Notification('نبض | '+current,{body:message});}catch{}}
@@ -753,7 +808,7 @@ function csvCell(value){let s=String(value??'');if(typeof value==='string'&&/^[\
 function exportCSV(){if(!journal.length){toast('لا توجد صفقات للتصدير.');return;}const rows=[['الأداة','النوع','رمز العقد','الاتجاه','الدخول','الوقف','الخروج','الكمية','المضاعف','الرسوم','الربح/الخسارة','R','تاريخ الفتح','تاريخ الإغلاق','ملاحظة'],...journal.map(t=>[t.sym,t.asset||'stock',t.contract||'',t.side,t.entry,t.stop,t.exit,t.qty,tradeMultiplier(t),tradeFees(t),pnlOf(t),rOf(t),t.opened,t.closed,t.note])],csv='\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n'),url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='nabd-journal-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function showView(view){currentView=view;document.querySelectorAll('[data-page]').forEach(el=>el.hidden=el.dataset.page!==view);document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false');});$('dataBanner').hidden=!['overview','scanner','opportunities'].includes(view);if(view==='overview')requestAnimationFrame(drawChart);if(view==='journal')renderJournal();if(view==='futures'){requestAnimationFrame(drawFutureChart);calcFutureRisk();}if(view==='portfolio')renderPortfolio();if(view==='events')renderEvents();if(view==='alertcenter')renderAlertHub();}
 function toggleRefresh(){paused=!paused;$('pauseBtn').textContent=paused?'▶ استئناف التحديث':'Ⅱ إيقاف التحديث';toast(paused?'التحديث التلقائي متوقف.':'تم استئناف التحديث كل 60 ثانية.');if(!paused)refreshAll();}
-async function refreshAll(){if(busyRefresh)return;busyRefresh=true;$('refreshBtn').disabled=true;try{await Promise.allSettled([loadSymbol(),updateQuotes()]);}finally{busyRefresh=false;$('refreshBtn').disabled=false;}}
+async function refreshAll(force=false){if(busyRefresh)return;busyRefresh=true;if(force){for(const entry of cache.values())entry.at=0;}$('refreshBtn').disabled=true;try{await Promise.allSettled([loadSymbol(),updateQuotes()]);}finally{busyRefresh=false;$('refreshBtn').disabled=false;}}
 function init(){
   $('apikey').value=API_KEY;$('newskey').value=NEWS_KEY;try{$('rememberKeys').checked=!!localStorage.getItem('td_key')||!!localStorage.getItem('fh_key');}catch{}
   $('capital').value=settings.capital??10000;$('riskPct').value=settings.riskPct??1;$('notifEnabled').checked=!!settings.notifications;$('notifEntry').checked=settings.priceNotifications!==false;$('notifVibrate').checked=!!settings.vibrate;$('notifVolume').value=settings.volume??40;
@@ -767,9 +822,7 @@ function init(){
   $('apikey').setAttribute('aria-label','مفتاح Twelve Data');$('newskey').setAttribute('aria-label','مفتاح Finnhub');$('notifVolume').setAttribute('aria-label','مستوى صوت التنبيه');
   $('chart').addEventListener('pointermove',chartHover);$('chart').addEventListener('pointerleave',()=>$('chartTooltip').hidden=true);new ResizeObserver(drawChart).observe($('chart').parentElement);
   document.addEventListener('keydown',e=>{if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();showView('overview');$('searchInput').focus();}});
-  // ملء حقول المفاتيح تلقائياً
-  $('apikey').value=API_KEY;
-  $('newskey').value=NEWS_KEY;
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){updateMarketStatus();if(!paused)refreshAll();}});
   updateMarketStatus();renderWatchlist();renderJournal();renderPriceAlerts();setChartMode(chartMode);loadSymbol();
   $('nqAnalysis').textContent='قراءة لثمانية أسهم تقنية، وليست تحليلاً لعقود NQ. اضغط تحليل الآن.';
   setInterval(updateMarketStatus,30000);setInterval(()=>{noteRequests();if(!paused&&!document.hidden)refreshAll();},60000);
