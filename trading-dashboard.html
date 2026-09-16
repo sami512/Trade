@@ -673,17 +673,38 @@ function vwap(bars){if(!bars.length)return null;const day=sessionKey(bars.at(-1)
 function buildSignal(bars,sessionVwap=vwap){
   if(bars.length<35)throw new Error('بيانات التحليل غير كافية.');
   const cl=bars.map(c=>c.c),price=cl.at(-1),R=rsi(cl),M=macd(cl),ema9=ema(cl,9).at(-1),ema21=ema(cl,21).at(-1),vw=sessionVwap(bars),A=atr(bars);
-  const reasons=[];let score=0,available=3;
-  function add(value,up,down,neutral){score+=value;reasons.push([value>0?'pos':value<0?'neg':'neu',value>0?up:value<0?down:neutral]);}
+  const reasons=[];let scorePoints=0;
+  function add(points,up,down,neutral){scorePoints+=points;reasons.push([points>0?'pos':points<0?'neg':'neu',points>0?up:points<0?down:neutral]);}
   const tolerance=price*1e-7;
-  add(Math.abs(ema9-ema21)<=tolerance?0:ema9>ema21?1:-1,'EMA 9 أعلى EMA 21 · اتجاه صاعد','EMA 9 أدنى EMA 21 · اتجاه هابط','المتوسطات متقاربة · اتجاه محايد');
-  if(vw!=null){available++;add(Math.abs(price-vw)<=tolerance?0:price>vw?1:-1,'السعر أعلى VWAP للجلسة المتاحة','السعر أدنى VWAP للجلسة المتاحة','السعر عند VWAP');}else reasons.push(['neu','VWAP غير متاح: لا توجد أحجام جلسة صالحة']);
-  add(Math.abs(M.hist)<=tolerance?0:M.hist>0?1:-1,'MACD · زخم إيجابي','MACD · زخم سلبي','MACD · زخم محايد');
-  add(R<30?1:R>70?-1:0,`RSI ${R.toFixed(1)} · تشبّع بيعي`,`RSI ${R.toFixed(1)} · تشبّع شرائي`,`RSI ${R.toFixed(1)} · منطقة محايدة`);
-  let verdict=score>=2?'buy':score<=-2?'sell':'hold';
+
+  // EMA: 20 نقطة
+  add(Math.abs(ema9-ema21)<=tolerance?0:ema9>ema21?20:-20,'EMA 9 أعلى EMA 21 · اتجاه صاعد','EMA 9 أدنى EMA 21 · اتجاه هابط','المتوسطات متقاربة · اتجاه محايد');
+
+  // VWAP: 20 نقطة
+  if(vw!=null){add(Math.abs(price-vw)<=tolerance?0:price>vw?20:-20,'السعر أعلى VWAP للجلسة المتاحة','السعر أدنى VWAP للجلسة المتاحة','السعر عند VWAP');}else reasons.push(['neu','VWAP غير متاح: لا توجد أحجام جلسة صالحة']);
+
+  // MACD: 20 نقطة
+  add(Math.abs(M.hist)<=tolerance?0:M.hist>0?20:-20,'MACD · زخم إيجابي','MACD · زخم سلبي','MACD · زخم محايد');
+
+  // RSI: 20 نقطة
+  add(R<30?20:R>70?-20:0,`RSI ${R.toFixed(1)} · تشبّع بيعي`,`RSI ${R.toFixed(1)} · تشبّع شرائي`,`RSI ${R.toFixed(1)} · منطقة محايدة`);
+
+  // الحجم: 20 نقطة
+  const avgVol=bars.slice(-20).reduce((a,b)=>a+b.v,0)/20;
+  const volRatio=bars.at(-1).v/avgVol;
+  add(volRatio>1.5?20:volRatio<0.8?-10:0,`الحجم عالي (${volRatio.toFixed(1)}x) · ارتفاع قوي`,`الحجم منخفض (${volRatio.toFixed(1)}x) · حركة ضعيفة`,'الحجم محايد');
+
+  // حساب Score من 0-100 (scorePoints من -100 إلى +100)
+  const score100=Math.max(0,Math.min(100,Math.round((scorePoints/100)*50+50)));
+
+  let verdict='hold';
+  if(score100>=75){verdict=scorePoints>0?'buy':'sell';}
+  else if(score100>=50){verdict=scorePoints>0?'buy':'sell';}
+
   if(!positive(A))verdict='hold';const dir=verdict==='sell'?-1:1,stop_dist=A*1.5;
   if(price-dir*stop_dist<=0||price+dir*A*2.5<=0)verdict='hold';
-  return {price,R,M,ema9,ema21,vw,atr:A,score,available,reasons,verdict,label:verdict==='buy'?'إشارة صعود':verdict==='sell'?'إشارة هبوط':'انتظار / مراقبة',entry:verdict==='hold'?null:price,stop:verdict==='hold'?null:price-dir*stop_dist,t1:verdict==='hold'?null:price+dir*A*1.5,t2:verdict==='hold'?null:price+dir*A*2.5,barTime:bars.at(-1).t};
+
+  return {price,R,M,ema9,ema21,vw,atr:A,score:score100,scoreRaw:scorePoints,available:100,reasons,verdict,label:verdict==='hold'?'انتظار / مراقبة':score100>=85?`إشارة ${verdict==='buy'?'صعود':'هبوط'} قوية جداً`:score100>=75?`إشارة ${verdict==='buy'?'صعود':'هبوط'} قوية`:`إشارة ${verdict==='buy'?'صعود':'هبوط'}`,entry:verdict==='hold'?null:price,stop:verdict==='hold'?null:price-dir*stop_dist,t1:verdict==='hold'?null:price+dir*A*1.5,t2:verdict==='hold'?null:price+dir*A*2.5,barTime:bars.at(-1).t};
 }
 function riskSize(cap,pct,plan){if(!finite(cap)||cap<0||!finite(pct)||pct<0||pct>100)return null;const budget=cap*(pct/100);if(!plan||!positive(plan.entry)||!positive(plan.stop)||plan.entry===plan.stop)return {budget,shares:0,pos:0,actual:0,rr:null};const per=Math.abs(plan.entry-plan.stop),shares=Math.max(0,Math.min(Math.floor(budget/per),Math.floor(cap/plan.entry)));if(!Number.isSafeInteger(shares))return null;return {budget,shares,pos:shares*plan.entry,actual:shares*per,rr:Math.abs(plan.t1-plan.entry)/per};}
 function calcRisk(){
@@ -740,9 +761,26 @@ async function loadSymbol(){
 }
 function renderSignal(sig){
   $('iRSI').textContent=sig.R.toFixed(1);$('iRSI').className='val '+(sig.R>70?'down':sig.R<30?'up':'');$('iMACD').textContent=sig.M.hist.toFixed(3);$('iMACD').className='val '+(sig.M.hist>=0?'up':'down');$('iEMA').textContent=sig.ema9.toFixed(1)+' / '+sig.ema21.toFixed(1);$('iVWAP').textContent=fmt(sig.vw);
-  $('signalBox').className='signal '+sig.verdict;$('verdict').textContent=sig.label;$('verdictSub').textContent=(sig.demo?'محاكاة · ':'')+'صافي القواعد: '+sig.score+' من ±'+sig.available+' · ليس احتمال نجاح';$('signalMeter').style.width=(Math.abs(sig.score)/sig.available*100)+'%';
+
+  // تحديد اللون حسب Score
+  let scoreColor='hold';
+  if(sig.verdict!=='hold'){
+    if(sig.score>=85)scoreColor=sig.verdict==='buy'?'buy':'sell';
+    else if(sig.score>=60)scoreColor=sig.verdict==='buy'?'buy':'sell';
+    else scoreColor='hold';
+  }
+
+  $('signalBox').className='signal '+scoreColor;
+  $('verdict').textContent=sig.score+'/100';
+
+  const scoreText=sig.score>=85?'⭐⭐⭐ قوية جداً':sig.score>=75?'⭐⭐ قوية':sig.score>=60?'⭐ معتدلة':sig.score>=40?'ضعيفة':'بدون إشارة';
+  $('verdictSub').textContent=(sig.demo?'محاكاة · ':'')+'الإشارة: '+sig.label+' ('+scoreText+')';
+
+  $('signalMeter').style.width=sig.score+'%';
+
   for(const [id,value] of [['pEntry',sig.entry],['pStop',sig.stop],['pT1',sig.t1],['pT2',sig.t2]])$(id).textContent=fmt(value);
-  $('expert').innerHTML=sig.verdict==='hold'?'المؤشرات غير متفقة. لا تُنشأ خطة دخول حتى تظهر إشارة اتجاه.':`خطة ${sig.verdict==='buy'?'شراء':'بيع على المكشوف'} حسابية من آخر شمعة مكتملة. الوقف <b>1.5 × ATR</b> والهدفان <b>1.5 × ATR</b> و <b>2.5 × ATR</b>. إشارة الهبوط ليست أمراً بإغلاق كل مركز شراء.`;
+  $('expert').innerHTML=sig.verdict==='hold'?'المؤشرات غير متفقة. لا تُنشأ خطة دخول حتى تظهر إشارة اتجاه.':`<b>Score ${sig.score}/100</b> - خطة ${sig.verdict==='buy'?'شراء':'بيع على المكشوف'} حسابية من آخر شمعة مكتملة. الوقف <b>1.5 × ATR</b> والهدفان <b>1.5 × ATR</b> و <b>2.5 × ATR</b>. إشارة الهبوط ليست أمراً بإغلاق كل مركز شراء.`;
+
   $('reasons').innerHTML=sig.reasons.map(([t,txt])=>`<li><span class="tag ${t}">${t==='pos'?'صاعد':t==='neg'?'هابط':'محايد'}</span><span>${esc(txt)}</span></li>`).join('');
 }
 function setChartMode(mode){chartMode=mode;saveSettings();$('candleBtn').classList.toggle('active',mode==='candles');$('lineBtn').classList.toggle('active',mode==='line');drawChart();}
