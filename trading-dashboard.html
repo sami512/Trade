@@ -737,7 +737,20 @@ async function updateQuotes(){
     }catch(e){if(version!==configVersion)break;const px=$('wpx-'+sym),ch=$('wch-'+sym),meta=$('wmeta-'+sym);if(px)px.textContent='—';if(ch)ch.textContent='';if(meta){meta.textContent='غير متاح';meta.title=cleanError(e);}}}
   }finally{quoteUpdating=false;if(version!==configVersion)updateQuotes();}
 }
-function renderQuote(q){$('curPrice').textContent=fmt(q.price);$('curChg').textContent=percent(q.pct);$('curChg').className='chg '+(q.pct>=0?'up':'down');$('sourceBadge').textContent=q.demo?'محاكاة':q.source+' · '+(dataFreshness(q.t).stale?'سعر متأخر':'آخر سعر متاح')+(q.fallback?' · مصدر بديل':'');$('sourceBadge').title=quoteAge(q);$('quoteStamp').textContent=q.demo?'عينة سعر تجريبية ثابتة':q.source+' · '+quoteAge(q)+' · آخر فحص '+timeText(q.checkedAt);}
+function renderQuote(q){
+  $('curPrice').textContent=fmt(q.price);
+  $('curChg').textContent=percent(q.pct);
+  $('curChg').className='chg '+(q.pct>=0?'up':'down');
+
+  // تحقق من aftermarket
+  const p=marketParts(q.t||Date.now()),hour=+p.hour;
+  const isAfterHours=hour<10||hour>=16;
+  const afterHourLabel=isAfterHours?' · 🌙 بعد الإغلاق':'';
+
+  $('sourceBadge').textContent=q.demo?'محاكاة':q.source+' · '+(dataFreshness(q.t).stale?'سعر متأخر':'آخر سعر متاح')+(q.fallback?' · مصدر بديل':'')+afterHourLabel;
+  $('sourceBadge').title=quoteAge(q)+(isAfterHours?' (Aftermarket Data - بيانات بعد الإغلاق)':'');
+  $('quoteStamp').textContent=q.demo?'عينة سعر تجريبية ثابتة':q.source+' · '+quoteAge(q)+' · آخر فحص '+timeText(q.checkedAt);
+}
 function clearAnalysis(message){lastPlan=null;currentCandles=[];currentData=null;$('chartEmpty').textContent=message;$('chartEmpty').hidden=false;$('chartTooltip').hidden=true;['iRSI','iMACD','iEMA','iVWAP','pEntry','pStop','pT1','pT2'].forEach(id=>$(id).textContent='—');$('signalBox').className='signal hold';$('verdict').textContent='التحليل غير متاح';$('verdictSub').textContent=message;$('signalMeter').style.width='0%';$('reasons').innerHTML='';$('expert').textContent='';$('barStamp').textContent='—';drawChart();calcRisk();}
 async function loadSymbol(){
   const seq=++loadSequence,sym=current,tf=interval,version=configVersion;clearAnalysis('جاري تحميل '+sym+'…');$('companyName').textContent=COMMON.find(x=>x[0]===sym)?.[1]||watch.find(w=>w.s===sym)?.n||sym;$('curSym').textContent=sym;$('curPrice').textContent='—';$('curChg').textContent='';$('verdict').textContent='جاري التحليل…';$('verdictSub').textContent='';$('sourceBadge').textContent='جاري الاتصال';$('quoteStamp').textContent='وقت السعر: —';
@@ -863,7 +876,14 @@ function init(){
   document.addEventListener('visibilitychange',()=>{if(!document.hidden){updateMarketStatus();if(!paused)refreshAll();}});
   updateMarketStatus();renderWatchlist();renderJournal();renderPriceAlerts();setChartMode(chartMode);loadSymbol();
   $('nqAnalysis').textContent='قراءة لثمانية أسهم تقنية، وليست تحليلاً لعقود NQ. اضغط تحليل الآن.';
-  setInterval(updateMarketStatus,30000);setInterval(()=>{noteRequests();if(!paused&&!document.hidden)refreshAll();},15000);updateQuotes();loadSymbol();
+  setInterval(updateMarketStatus,30000);
+  // تحديث مستمر 24/7 (يشمل aftermarket حتى 3 AM)
+  setInterval(()=>{
+    noteRequests();
+    if(!paused&&!document.hidden)refreshAll(false);
+  },15000);
+  // تحديث فوري عند التحميل
+  updateQuotes();loadSymbol();
 }
 window.addEventListener('DOMContentLoaded',init);
 
