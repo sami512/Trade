@@ -645,13 +645,13 @@ function normalizeBars(values){
   bars.sort((a,b)=>a.t-b.t);const unique=bars.filter((c,i)=>!i||c.t!==bars[i-1].t);
   if(unique.length<35)throw new Error('يلزم 35 شمعة صالحة على الأقل لحساب المؤشرات.');return unique;
 }
-async function fetchSeries(sym,tf=interval){return cached('series:'+sym+':'+tf,55000,async()=>{
+async function fetchSeries(sym,tf=interval){return cached('series:'+sym+':'+tf,14000,async()=>{
   if(isDemo())return {bars:genDemo(sym,tf),source:'محاكاة',demo:true};
   if(!API_KEY)throw new Error('أضف مفتاح Twelve Data لعرض الشموع والإشارات. Finnhub يوفّر الأسعار والأخبار هنا.');
   const j=await api('td','time_series',{symbol:sym,interval:tf,outputsize:500,timezone:'UTC'});
   return {bars:normalizeBars(j.values),source:'Twelve Data',demo:false};
 });}
-async function fetchQuote(sym){return cached('quote:'+sym,60000,async()=>{
+async function fetchQuote(sym){return cached('quote:'+sym,15000,async()=>{
   if(isDemo())return demoQuote(sym);
   const providers=[...(NEWS_KEY?['fh']:[]),...(API_KEY?['td']:[])],errors=[];
   for(const provider of providers){try{
@@ -863,7 +863,7 @@ function init(){
   document.addEventListener('visibilitychange',()=>{if(!document.hidden){updateMarketStatus();if(!paused)refreshAll();}});
   updateMarketStatus();renderWatchlist();renderJournal();renderPriceAlerts();setChartMode(chartMode);loadSymbol();
   $('nqAnalysis').textContent='قراءة لثمانية أسهم تقنية، وليست تحليلاً لعقود NQ. اضغط تحليل الآن.';
-  setInterval(updateMarketStatus,30000);setInterval(()=>{noteRequests();if(!paused&&!document.hidden)refreshAll();},60000);
+  setInterval(updateMarketStatus,30000);setInterval(()=>{noteRequests();if(!paused&&!document.hidden)refreshAll();},15000);updateQuotes();loadSymbol();
 }
 window.addEventListener('DOMContentLoaded',init);
 
